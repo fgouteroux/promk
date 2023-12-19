@@ -16,6 +16,21 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+var (
+	upMetric = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "up",
+			Help: "the prometheus keepalive agent up metric",
+		},
+	)
+	reg = prometheus.NewRegistry()
+)
+
+func init() {
+	reg.MustRegister(upMetric)
+	upMetric.Add(1)
+}
+
 // Push metric to a remote write url
 func Push(client *remote.Client, data []byte) error {
 	// Encode the request body into snappy encoding.
@@ -29,17 +44,6 @@ func Push(client *remote.Client, data []byte) error {
 
 func CollectAndEncode(logger log.Logger, jobLabel string, labels map[string]string) []byte {
 	var raw []byte
-	up := prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Name: "up",
-			Help: "the prometheus keepalive agent up metric",
-		},
-	)
-
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(up)
-
-	up.Add(1)
 
 	mfs, err := reg.Gather()
 	if err != nil {
