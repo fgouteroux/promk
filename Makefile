@@ -1,8 +1,12 @@
 TEST?=$$(go list ./... |grep -v 'vendor')
+GO           ?= go
+GOFMT        ?= $(GO)fmt
 GOFMT_FILES?=$$(find . -name '*.go' |grep -v vendor)
-GO_CMD ?= go
-BUILD_DIR = $(PWD)/build
 SHELL := /bin/bash
+FIRST_GOPATH := $(firstword $(subst :, ,$(shell $(GO) env GOPATH)))
+PROMU        := $(FIRST_GOPATH)/bin/promu
+
+include Makefile.common
 
 clean:
 	rm -rf ./build ./dist
@@ -11,7 +15,7 @@ tidy:
 	go mod tidy
 
 fmt:
-	$(GO_CMD)fmt -w $(GOFMT_FILES)
+	$(GOFMT) -w $(GOFMT_FILES)
 
 lint:
 	golangci-lint run
@@ -19,13 +23,5 @@ lint:
 security:
 	gosec -exclude-dir _local -quiet ./...
 
-build:
-	goreleaser build --snapshot --rm-dist
-
-test:
-	go test -v -timeout 30s -coverprofile=cover.out -cover $(TEST)
-	go tool cover -func=cover.out
-
-release:
-	goreleaser release --skip-publish --rm-dist
-
+promu:
+	$(PROMU) build
