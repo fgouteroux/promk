@@ -1,4 +1,4 @@
-package main
+package pusher
 
 import (
 	"os"
@@ -7,14 +7,27 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 
+	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
+
+	"github.com/prometheus/prometheus/storage/remote"
+
+	customlog "github.com/fgouteroux/promk/pkg/log"
 )
 
-func main() {
+type Pusher struct {
+	logger   log.Logger
+	client   *remote.Client
+	interval time.Duration
+	jobLabel string
+	labels   map[string]string
+}
+
+func Setup() (p *Pusher) {
 	app := kingpin.New(filepath.Base(os.Args[0]), "Prometheus Keepalive Agent.").UsageWriter(os.Stdout)
 	baseURL := app.Flag("remote-write-url", "Prometheus remote-write url").Envar("PROMK_URL").Required().URL()
 	username := app.Flag("basic-auth.username", "Prometheus remote-write username").Envar("PROMK_USERNAME").String()
@@ -36,7 +49,12 @@ func main() {
 
 	kingpin.MustParse(app.Parse(os.Args[1:]))
 
-	logger := promlog.New(promlogConfig)
+	logger, err := customlog.InitLogger(promlogConfig)
+	if err != nil {
+		var logger log.Logger
+		level.Error(logger).Log("Failed to init custom logger", err)
+		os.Exit(1)
+	}
 
 	level.Info(logger).Log("msg", "Starting promk", "version", version.Info())              // #nosec G104
 	level.Info(logger).Log("msg", "Build context", "build_context", version.BuildContext()) // #nosec G104
@@ -52,17 +70,27 @@ func main() {
 		os.Exit(1)
 	}
 
+	return &Pusher{
+		logger:   logger,
+		client:   remoteWriteClient,
+		interval: *pushInterval,
+		jobLabel: *jobLabel,
+		labels:   *labels,
+	}
+}
+
+func (p *Pusher) Run() {
 	// create a new Ticker
-	tk := time.NewTicker(*pushInterval)
+	tk := time.NewTicker(p.interval)
 
 	// start the ticker
 	for range tk.C {
-		metric := CollectAndEncode(logger, *jobLabel, *labels)
-		err := Push(remoteWriteClient, metric)
+		metric := CollectAndEncode(p.logger, p.jobLabel, p.labels)
+		err := Push(p.client, metric)
 		if err != nil {
-			level.Error(logger).Log("msg", "Could not push to the remote write", "err", err) // #nosec G104
+			level.Error(p.logger).Log("msg", "Could not push to the remote write", "err", err) // #nosec G104
 		} else {
-			level.Info(logger).Log("msg", "Successful push to the remote write") // #nosec G104
+			level.Info(p.logger).Log("msg", "Successful push to the remote write") // #nosec G104
 		}
 	}
 }
