@@ -5,6 +5,7 @@ repository:
 build:
     binaries:
         - name: promk
+          path: ./cmd/
     ldflags: |
         -X github.com/prometheus/common/version.Version={{.Version}}
         -X github.com/prometheus/common/version.Revision={{.Revision}}
