@@ -61,6 +61,8 @@ func main() {
 		err := Push(remoteWriteClient, metric)
 		if err != nil {
 			level.Error(logger).Log("msg", "Could not push to the remote write", "err", err) // #nosec G104
+		} else {
+			level.Info(logger).Log("msg", "Successful push to the remote write") // #nosec G104
 		}
 	}
 }
